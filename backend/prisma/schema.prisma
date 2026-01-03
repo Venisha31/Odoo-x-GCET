@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+
+enum LeaveType {
+  PAID
+  SICK
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Company model for multi-tenant support
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  logo      String?
+  code      String   @unique @default("OI") // Company code for Employee ID generation
+  serialNo  Int      @default(0) // Auto-increment for employee ID
+  
+  users     User[]
+  employees Employee[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  role            Role     @default(EMPLOYEE)
+  mustChangePass  Boolean  @default(true) // First login password change
+  
+  companyId       String?
+  company         Company? @relation(fields: [companyId], references: [id])
+  
+  employee        Employee?
+  
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Employee {
+  id             String   @id @default(uuid())
+  employeeId     String   @unique // Auto-generated: OIJODO20220001
+  firstName      String
+  lastName       String
+  email          String   @unique
+  phone          String?
+  address        String?
+  department     String?
+  position       String?
+  joiningDate    DateTime @default(now())
+  profilePicture String?
+  
+  // Personal Info (editable)
+  about          String?
+  interests      String?
+  skills         String?
+  
+  companyId      String?
+  company        Company? @relation(fields: [companyId], references: [id])
+  
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  attendance     Attendance[]
+  leaveRequests  LeaveRequest[]
+  leaveAllocation LeaveAllocation?
+  payroll        Payroll[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  date       DateTime         @db.Date
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     AttendanceStatus @default(PRESENT)
+  workHours  Float?           // Calculated work hours
+  extraHours Float?           // Overtime hours (> 8 hours)
+  
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([employeeId, date])
+}
+
+model LeaveAllocation {
+  id            String   @id @default(uuid())
+  paidLeaves    Int      @default(24) // Default allocated paid leaves
+  sickLeaves    Int      @default(12) // Default allocated sick leaves
+  unpaidLeaves  Int      @default(0)  // Unlimited usually
+  
+  paidUsed      Int      @default(0)  // Used paid leaves
+  sickUsed      Int      @default(0)  // Used sick leaves
+  unpaidUsed    Int      @default(0)  // Used unpaid leaves
+  
+  employeeId    String   @unique
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model LeaveRequest {
+  id           String      @id @default(uuid())
+  type         LeaveType
+  startDate    DateTime    @db.Date
+  endDate      DateTime    @db.Date
+  remarks      String?
+  status       LeaveStatus @default(PENDING)
+  adminComment String?
+  attachment   String?     // File path for attachments (sick leave certificate)
+  
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Payroll {
+  id          String   @id @default(uuid())
+  month       Int
+  year        Int
+  
+  // Wage structure
+  basicWage   Float    @default(0)
+  monthlyWage Float    @default(0)
+  yearlyWage  Float    @default(0)
+  workingDays Int      @default(22)
+  
+  // Salary components
+  hra         Float    @default(0) // House Rent Allowance
+  da          Float    @default(0) // Dearness Allowance
+  bonus       Float    @default(0)
+  
+  // Deductions
+  pf          Float    @default(0) // Provident Fund
+  esi         Float    @default(0) // ESI
+  tax         Float    @default(0) // Professional Tax
+  
+  netSalary   Float
+  
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([employeeId, month, year])
+}
