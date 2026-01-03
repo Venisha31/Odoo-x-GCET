@@ -105,4 +105,6 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 - `GET /api/payroll/all` - Get all payroll (Admin)
 - `POST /api/payroll` - Create payroll (Admin)
 
+## License
 
+Built for Odoo Hackathon 2026
